@@ -19,7 +19,21 @@ struct message{
     char payload[MAXLINE];
 };
 
+//Function extracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff 
+int readable_timeo(int fd, int sec)
+{
+    fd_set rset;
+    struct timeval tv;
 
+    FD_ZERO(&rset);
+    FD_SET(fd, &rset);
+    tv.tv_sec = sec;
+    tv.tv_usec = 0;
+
+    return (select(fd+1, &rset, NULL, NULL, &tv));    
+}
+
+//Functions abstracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff (2003)
 int tcp_connect(const char *host, const char *serv)
 {
     int sockfd, n;
@@ -72,11 +86,10 @@ int Tcp_connect (const char *host, const char *serv)
     return (tcp_connect (host, serv));
 }
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
     int     sockfd, n;
-    char    recvline[MAXLINE + 1];
+    struct message received_msg;
 
     if (argc != 3) {
         fprintf(stderr, "Usage: client <ServerHostname> or client <IPaddress><PortNumber>\n");
@@ -112,12 +125,11 @@ main(int argc, char **argv)
     
 
     //read the server’s reply and display the result 
-    while ((n = read(sockfd, recvline, MAXLINE)) > 0) {
-        recvline[n] = 0;        /* null terminate */
-        if (fputs(recvline, stdout) == EOF) {
-            printf("fputs error\n");
-            exit(1);
-        }
+    while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
+        printf("Received Message:\n");
+        printf("Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+        printf("Time: %.*s\n", received_msg.timelen, received_msg.currtime);
+        printf("Payload: %.*s\n", received_msg.msglen, received_msg.payload);
     }
     if (n < 0) {
         printf("read error\n");
