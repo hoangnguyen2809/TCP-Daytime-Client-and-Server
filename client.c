@@ -12,6 +12,14 @@
 #define MAXLINE     4096    /* max text line length */
 #define DAYTIME_PORT 3333
 
+struct message{
+    int addrlen, timelen, msglen;
+    char addr[MAXLINE];
+    char currtime[MAXLINE];
+    char payload[MAXLINE];
+};
+
+
 int tcp_connect(const char *host, const char *serv)
 {
     int sockfd, n;
@@ -22,7 +30,7 @@ int tcp_connect(const char *host, const char *serv)
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ( (n = getaddrinfo (host, serv, &hints, &res)) != 0)
+    if ((n = getaddrinfo (host, serv, &hints, &res)) != 0)
     {
         fprintf(stderr,"tcp_connect error for %s, %s: %s",host, serv, gai_strerror (n));
         exit(1);
@@ -45,15 +53,13 @@ int tcp_connect(const char *host, const char *serv)
     }
 
     if (getnameinfo(res->ai_addr, res->ai_addrlen, host_buffer, sizeof(host_buffer),
-                service_buffer, sizeof(service_buffer), 0) == 0 && strlen(host_buffer) == 0)
+                service_buffer, sizeof(service_buffer), 0) == 0)
     {
         printf("Connected to server: %s:%s\n", host_buffer, service_buffer);
     }
     else
     {
-        // Use the IP address as the "hostname"
-        strncpy(host_buffer, inet_ntoa(((struct sockaddr_in *)res->ai_addr)->sin_addr), sizeof(host_buffer));
-        printf("Connected to server: %s:%s\n", host_buffer, service_buffer);
+        perror("getnameinfo error");
     }
 
     freeaddrinfo (ressave);
@@ -106,7 +112,7 @@ main(int argc, char **argv)
     
 
     //read the server’s reply and display the result 
-    while ( (n = read(sockfd, recvline, MAXLINE)) > 0) {
+    while ((n = read(sockfd, recvline, MAXLINE)) > 0) {
         recvline[n] = 0;        /* null terminate */
         if (fputs(recvline, stdout) == EOF) {
             printf("fputs error\n");
