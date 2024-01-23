@@ -1,4 +1,5 @@
 #include <netinet/in.h>
+#include <arpa/inet.h>
 #include <time.h>
 #include <strings.h>
 #include <stdio.h>
@@ -17,11 +18,41 @@ struct message{
     char payload[MAXLINE];
 };
 
+//Function extracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff 
+int readable_timeo(int fd, int sec)
+{
+    fd_set rset;
+    struct timeval tv;
+
+    FD_ZERO(&rset);
+    FD_SET(fd, &rset);
+    tv.tv_sec = sec;
+    tv.tv_usec = 0;
+
+    return (select(fd+1, &rset, NULL, NULL, &tv));    
+}
+
+//Populate fields of message before sending
+void fill_message(struct message *msg, const char *ip_address, const char *current_time, const char *payload) {
+    msg->addrlen = strlen(ip_address);
+    msg->timelen = strlen(current_time);
+    msg->msglen = strlen(payload);
+
+    strncpy(msg->addr, ip_address, sizeof(msg->addr));
+    strncpy(msg->currtime, current_time, sizeof(msg->currtime));
+    strncpy(msg->payload, payload, sizeof(msg->payload));
+
+    msg->addr[msg->addrlen] = '\0';
+    msg->currtime[msg->timelen] = '\0';
+    msg->payload[msg->msglen] = '\0';
+}
+
 int main(int argc, char **argv)
 {
-    int     listenfd, connfd, n;
+    int     listenfd, connfd;
     struct sockaddr_in servaddr;
-    struct message received_msg;
+    socklen_t addr_len = sizeof(servaddr);
+    struct message my_message;
     char    buff[MAXLINE];
     time_t ticks;
 
@@ -31,7 +62,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    long port_num= atoi(argv[1]);
+    long port_num = atoi(argv[1]);
 
     //creating a TCP socket in server side
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -70,25 +101,30 @@ int main(int argc, char **argv)
 
         printf("Accepted connection.\n");
 
-        n = read(connfd, &received_msg, sizeof(struct message));
-        if (n < 0)
-        {
-            printf("read error\n");
-            close(connfd);
-            exit(1);
-        }
-
-        printf("Received Message:\n");
-        printf("Address: %.*s\n", received_msg.addrlen, received_msg.addr);
-        printf("Time: %.*s\n", received_msg.timelen, received_msg.currtime);
-        //printf("Payload: %.*s\n", received_msg.msglen, received_msg.payload);
-
         ticks = time(NULL);
         //appended current time to the string buff
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks)); //ctime() ticks value into a human-readable
-        //the result is copied to connfd and send back to client
+        
+
+        //initilize message
+        char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
+        //obtain the local address through getsockname
+        if (getsockname(connfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
+        {
+            inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
+        }
+        else {
+            perror("getsockname error");
+        }
+        
+        printf("Server address: %s", server_ip);
+        const char *payload = "";
+        fill_message(&my_message, server_ip, buff, payload);
+
+        
+        //the message is copied to connfd and send back to client
         printf("Sending response: %s", buff);
-        write(connfd, buff, strlen(buff));
+        write(connfd, &my_message, sizeof(struct message));
         
 
         //Terminate connection
