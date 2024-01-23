@@ -126,9 +126,9 @@ int main(int argc, char **argv)
 
     //read the server’s reply and display the result 
     while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
-        printf("Received Message:\n");
-        printf("Address: %.*s\n", received_msg.addrlen, received_msg.addr);
-        printf("Time: %.*s\n", received_msg.timelen, received_msg.currtime);
+        printf("Received Message!\n");
+        printf("Server address: %.*s\n", received_msg.addrlen, received_msg.addr);
+        printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
         printf("Payload: %.*s\n", received_msg.msglen, received_msg.payload);
     }
     if (n < 0) {

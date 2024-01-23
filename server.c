@@ -117,7 +117,6 @@ int main(int argc, char **argv)
             perror("getsockname error");
         }
         
-        printf("Server address: %s", server_ip);
         const char *payload = "";
         fill_message(&my_message, server_ip, buff, payload);
 
