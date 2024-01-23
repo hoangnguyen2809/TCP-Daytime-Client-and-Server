@@ -10,11 +10,18 @@
 #define LISTENQ     1024    /* 2nd argument to listen() */
 #define DAYTIME_PORT 3333
 
-int
-main(int argc, char **argv)
+struct message{
+    int addrlen, timelen, msglen;
+    char addr[MAXLINE];
+    char currtime[MAXLINE];
+    char payload[MAXLINE];
+};
+
+int main(int argc, char **argv)
 {
-    int     listenfd, connfd;
+    int     listenfd, connfd, n;
     struct sockaddr_in servaddr;
+    struct message received_msg;
     char    buff[MAXLINE];
     time_t ticks;
 
@@ -26,17 +33,18 @@ main(int argc, char **argv)
 
     long port_num= atoi(argv[1]);
 
+    //creating a TCP socket in server side
     listenfd = socket(AF_INET, SOCK_STREAM, 0);
 
     //set the entire structure to 0 using bzero to avoid uninitialized data
     bzero(&servaddr, sizeof(servaddr));
-
     servaddr.sin_family = AF_INET;
     //IP address as INADDR_ANY, which allows the server to accept a client connection 
     //on any interface, in case the server host has multiple interfaces
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons((uint16_t)port_num); /* daytime server */
 
+    //bind the socket listenfd to the server address
     if (bind(listenfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         perror("bind error");
         exit(1);
@@ -50,21 +58,38 @@ main(int argc, char **argv)
     }
     
     printf("Server listening on port %ld...\n", port_num);
-    for ( ; ; ) {
+    for ( ; ; ) 
+    {
+        //if there is a request, accept the request
         connfd = accept(listenfd, (struct sockaddr *) NULL, NULL);
-        if (connfd < 0) {
+        if (connfd < 0) 
+        {
             perror("accept error");
             continue;
         }
 
-        printf("Accepted connection. Sending response...\n");
+        printf("Accepted connection.\n");
+
+        n = read(connfd, &received_msg, sizeof(struct message));
+        if (n < 0)
+        {
+            printf("read error\n");
+            close(connfd);
+            exit(1);
+        }
+
+        printf("Received Message:\n");
+        printf("Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+        printf("Time: %.*s\n", received_msg.timelen, received_msg.currtime);
+        //printf("Payload: %.*s\n", received_msg.msglen, received_msg.payload);
 
         ticks = time(NULL);
-        //appended to the string by snprintf
+        //appended current time to the string buff
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks)); //ctime() ticks value into a human-readable
-        //the result is written to the client by write
-        write(connfd, buff, strlen(buff));
+        //the result is copied to connfd and send back to client
         printf("Sending response: %s", buff);
+        write(connfd, buff, strlen(buff));
+        
 
         //Terminate connection
         close(connfd);
