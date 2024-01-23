@@ -116,9 +116,21 @@ int main(int argc, char **argv)
         else {
             perror("getsockname error");
         }
+
+        FILE *who_process = popen("who", "r");
+        if (who_process == NULL) {
+            perror("popen error");
+            close(connfd);
+            continue;
+        }
+
+        // read the output of the who command into the payload
+        size_t read_size = fread(my_message.payload, 1, sizeof(my_message.payload), who_process);
+        printf("who_process: %p\n", (void *)who_process);
+        printf("my_message.payload: %s\n", my_message.payload);
+        pclose(who_process);
         
-        const char *payload = "";
-        fill_message(&my_message, server_ip, buff, payload);
+        fill_message(&my_message, server_ip, buff, my_message.payload);
 
         
         //the message is copied to connfd and send back to client
