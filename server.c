@@ -89,9 +89,9 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    printf("Start listening on: %ld \n",port_num);
+    printf("Start listening on port: %ld \n",port_num);
 
-    FILE *who_process = popen("who", "r");
+    
     for ( ; ; ) 
     {
         //if there is a request, accept the request
@@ -109,15 +109,18 @@ int main(int argc, char **argv)
         struct sockaddr_in clientAddr;
         socklen_t clientAddr_len = sizeof(clientAddr);
 
-
         if (getpeername(connfd, (struct sockaddr *)&clientAddr, &clientAddr_len) == 0) 
         {
             char client_name[NI_MAXHOST];
+            char client_ip[INET_ADDRSTRLEN];
             char client_port[NI_MAXHOST];
+            printf("Client information:\n");
             if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_port,NI_MAXHOST, NI_NAMEREQD) == 0)
             {
-                printf("Client Name/IP: %s\n", client_name);
-                printf("Client port/service: %s\n", client_port);
+                inet_ntop(AF_INET, &(clientAddr.sin_addr), client_ip, INET_ADDRSTRLEN);
+                printf("\tClient Name: %s\n", client_name);
+                printf("\tClient IPAddress: %s\n", client_ip);
+                printf("\tClient port: %s\n", client_port);
             }
             else
             {
@@ -132,7 +135,7 @@ int main(int argc, char **argv)
 
         char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
         //obtain the local address through getsockname
-        if (getsockname(listenfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
+        if (getsockname(connfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
         {
             inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
         }
@@ -146,29 +149,32 @@ int main(int argc, char **argv)
 
         //initilize message
         // read the output of the who command into the payload
+        FILE *who_process = popen("who", "r");
         if (fread(my_message.payload, 1, sizeof(my_message.payload), who_process) > 0) {
             printf("\n");
         } else {
             // Handle the case where fread returns an error or reaches the end of the file
             perror("fread error");
         }
+        pclose(who_process);
         printf("Preping message...\n");
         fill_message(&my_message, server_ip, buff, my_message.payload);
-        printf("my_message.addr: %s\n", my_message.addr);
-        printf("my_message.currtime: %s", my_message.currtime);
-        printf("my_message.payload: %s", my_message.payload);
+        printf("\tmy_message.addr: %s\n", my_message.addr);
+        printf("\tmy_message.currtime: %s", my_message.currtime);
+        printf("\tmy_message.payload: %s", my_message.payload);
         printf("...Finished\n");        
 
         //the message is copied to connfd and send back to client by write()
         printf("Sending message to client...\n");
         write(connfd, &my_message, sizeof(struct message));
+        printf("Message sent!\n");
         
 
         //Terminate connection
         close(connfd);
         printf("Connection closed.\n\n");
     }
-    pclose(who_process);
+    
 }
 
 
