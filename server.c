@@ -1,3 +1,4 @@
+#include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -87,8 +88,20 @@ int main(int argc, char **argv)
         perror("listen error");
         exit(1);
     }
-    
-    printf("Server listening on port %ld...\n", port_num);
+
+    char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
+    //obtain the local address through getsockname
+    if (getsockname(listenfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
+    {
+        inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
+    }
+    else {
+        perror("getsockname error");
+    }
+
+    printf("Start listening on: %s:%ld \n", server_ip,port_num);
+
+    FILE *who_process = popen("who", "r");
     for ( ; ; ) 
     {
         //if there is a request, accept the request
@@ -101,46 +114,61 @@ int main(int argc, char **argv)
 
         printf("Accepted connection.\n");
 
+
+        //Getting client name and ip adress
+        struct sockaddr_in clientAddr;
+        socklen_t clientAddr_len = sizeof(clientAddr);
+
+
+        if (getpeername(connfd, (struct sockaddr *)&clientAddr, &clientAddr_len) == 0) 
+        {
+            char client_name[NI_MAXHOST];
+            char client_ip[NI_MAXHOST];
+            if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_ip,NI_MAXHOST, NI_NAMEREQD) == 0)
+            {
+                printf("Client Name: %s\n", client_name);
+                printf("Client IP Address: %s\n", client_ip);
+            }
+            else
+            {
+                perror("getnameinfo error");
+            }
+        }
+        else {
+            perror("getpeername error");
+        }
+
+
+
         ticks = time(NULL);
         //appended current time to the string buff
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks)); //ctime() ticks value into a human-readable
         
 
         //initilize message
-        char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
-        //obtain the local address through getsockname
-        if (getsockname(connfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
-        {
-            inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
-        }
-        else {
-            perror("getsockname error");
-        }
-
-        FILE *who_process = popen("who", "r");
-        if (who_process == NULL) {
-            perror("popen error");
-            close(connfd);
-            continue;
-        }
-
         // read the output of the who command into the payload
-        size_t read_size = fread(my_message.payload, 1, sizeof(my_message.payload), who_process);
-        printf("who_process: %p\n", (void *)who_process);
-        printf("my_message.payload: %s\n", my_message.payload);
-        pclose(who_process);
-        
+        if (fread(my_message.payload, 1, sizeof(my_message.payload), who_process) > 0) {
+            printf("\n");
+        } else {
+            // Handle the case where fread returns an error or reaches the end of the file
+            perror("fread error");
+        }
+        printf("Preping message...\n");
         fill_message(&my_message, server_ip, buff, my_message.payload);
+        printf("my_message.addr: %s\n", my_message.addr);
+        printf("my_message.currtime: %s", my_message.currtime);
+        printf("my_message.payload: %s", my_message.payload);
+        printf("...Finished\n");        
 
-        
-        //the message is copied to connfd and send back to client
-        printf("Sending response: %s", buff);
+        //the message is copied to connfd and send back to client by write()
+        printf("Sending message to client...\n");
         write(connfd, &my_message, sizeof(struct message));
         
 
         //Terminate connection
         close(connfd);
-        printf("Connection closed.\n");
+        printf("Connection closed.\n\n");
     }
+    pclose(who_process);
 }
 

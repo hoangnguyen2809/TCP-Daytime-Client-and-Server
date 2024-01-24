@@ -34,7 +34,7 @@ int readable_timeo(int fd, int sec)
 }
 
 //Functions abstracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff (2003)
-int tcp_connect(const char *host, const char *serv)
+int tcp_connect(const char *host, const char *port)
 {
     int sockfd, n;
     struct addrinfo hints, *res, *ressave;
@@ -44,9 +44,9 @@ int tcp_connect(const char *host, const char *serv)
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
-    if ((n = getaddrinfo (host, serv, &hints, &res)) != 0)
+    if ((n = getaddrinfo (host, port, &hints, &res)) != 0)
     {
-        fprintf(stderr,"tcp_connect error for %s, %s: %s",host, serv, gai_strerror (n));
+        fprintf(stderr,"tcp_connect error for %s, %s: %s",host, port, gai_strerror (n));
         exit(1);
     }
     ressave = res;
@@ -62,28 +62,29 @@ int tcp_connect(const char *host, const char *serv)
 
     if (res == NULL)
     {
-        fprintf (stderr,"tcp_connect error for %s, %s", host, serv);
+        fprintf (stderr,"tcp_connect error for %s, %s", host, port);
         exit(1);
     }
 
     if (getnameinfo(res->ai_addr, res->ai_addrlen, host_buffer, sizeof(host_buffer),
                 service_buffer, sizeof(service_buffer), 0) == 0)
     {
-        printf("Connected to server: %s:%s\n", host_buffer, service_buffer);
+        printf("Server name: %s\n", host_buffer);
     }
     else
     {
         perror("getnameinfo error");
     }
 
+
     freeaddrinfo (ressave);
 
     return (sockfd);
 }
 
-int Tcp_connect (const char *host, const char *serv)
+int Tcp_connect (const char *host, const char *port)
 {
-    return (tcp_connect (host, serv));
+    return (tcp_connect (host, port));
 }
 
 int main(int argc, char **argv)
@@ -92,7 +93,7 @@ int main(int argc, char **argv)
     struct message received_msg;
 
     if (argc != 3) {
-        fprintf(stderr, "Usage: client <ServerHostname> or client <IPaddress><PortNumber>\n");
+        fprintf(stderr, "Usage: client <ServerHostname/IPaddress> <PortNumber>\n");
         exit(1);
     }
 
@@ -126,10 +127,9 @@ int main(int argc, char **argv)
 
     //read the server’s reply and display the result 
     while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
-        printf("Received Message!\n");
-        printf("Server address: %.*s\n", received_msg.addrlen, received_msg.addr);
+        printf("IP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
         printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
-        printf("Payload: %.*s\n", received_msg.msglen, received_msg.payload);
+        printf("Who: %.*s\n", received_msg.msglen, received_msg.payload);
     }
     if (n < 0) {
         printf("read error\n");
