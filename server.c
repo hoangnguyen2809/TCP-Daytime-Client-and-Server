@@ -89,17 +89,7 @@ int main(int argc, char **argv)
         exit(1);
     }
 
-    char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
-    //obtain the local address through getsockname
-    if (getsockname(listenfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
-    {
-        inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
-    }
-    else {
-        perror("getsockname error");
-    }
-
-    printf("Start listening on: %s:%ld \n", server_ip,port_num);
+    printf("Start listening on: %ld \n",port_num);
 
     FILE *who_process = popen("who", "r");
     for ( ; ; ) 
@@ -140,6 +130,15 @@ int main(int argc, char **argv)
 
 
 
+        char server_ip[INET_ADDRSTRLEN]; //retrieve server ip address
+        //obtain the local address through getsockname
+        if (getsockname(listenfd, (struct sockaddr *)&servaddr, &addr_len) == 0) 
+        {
+            inet_ntop(AF_INET, &(servaddr.sin_addr), server_ip, INET_ADDRSTRLEN);
+        }
+        else {
+            perror("getsockname error");
+        }
         ticks = time(NULL);
         //appended current time to the string buff
         snprintf(buff, sizeof(buff), "%.24s\r\n", ctime(&ticks)); //ctime() ticks value into a human-readable
