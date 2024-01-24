@@ -47,7 +47,7 @@ int tcp_connect(const char *host, const char *port)
 
     if ((n = getaddrinfo (host, port, &hints, &res)) != 0)
     {
-        fprintf(stderr,"tcp_connect error for %s, %s: %s",host, port, gai_strerror (n));
+        fprintf(stderr,"tcp_connect error for %s, %s: %s\n",host, port, gai_strerror (n));
         exit(1);
     }
     ressave = res;
@@ -70,7 +70,7 @@ int tcp_connect(const char *host, const char *port)
     if (getnameinfo(res->ai_addr, res->ai_addrlen, host_buffer, sizeof(host_buffer),
                 service_buffer, sizeof(service_buffer), 0) == 0)
     {
-        printf("Server name: %s:%s\n", host_buffer, service_buffer);
+        
     }
     else
     {
@@ -124,6 +124,48 @@ int main(int argc, char **argv)
     //     printf("connect error\n");
     //     exit(1);
     // }
+
+
+    struct sockaddr_storage local_addr;
+    socklen_t addr_len = sizeof(local_addr);
+    printf("Client side information:\n");
+    if (getsockname(sockfd, (struct sockaddr *)&local_addr, &addr_len) == 0)
+    {
+        char local_host[NI_MAXHOST], local_service[NI_MAXSERV];
+        if (getnameinfo((struct sockaddr *)&local_addr, addr_len, local_host, sizeof(local_host), local_service, sizeof(local_service), NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        {
+            printf("\tClient IP Address: %s\n", local_host);
+            printf("\tClient port number: %s\n\n", local_service);
+        }
+        else
+        {
+            perror("getnameinfo error for client");
+        }
+    }
+    else
+        perror("getsockname error");
+
+    struct sockaddr_in serverAddr;
+    socklen_t serverAddr_len = sizeof(serverAddr);
+    if (getpeername(sockfd, (struct sockaddr *)&serverAddr, &serverAddr_len) == 0) 
+    {
+        char server_name[NI_MAXHOST];
+        char server_port[NI_MAXHOST];
+        printf("Connected to server!\n");
+        if (getnameinfo((struct sockaddr*)&serverAddr, serverAddr_len, server_name, NI_MAXHOST, server_port,NI_MAXHOST, NI_NAMEREQD) == 0)
+        {
+            printf("Server Name: %s\n", server_name);
+        }
+        else
+        {
+            perror("getnameinfo error");
+        }
+    }
+    else {
+        perror("getpeername error");
+    }
+
+    
     
 
     //read the server’s reply and display the result 
@@ -136,6 +178,9 @@ int main(int argc, char **argv)
         printf("read error\n");
         exit(1);
     }
+
+    
+
 
     exit(0);
 }
