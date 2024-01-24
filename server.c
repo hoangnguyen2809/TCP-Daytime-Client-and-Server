@@ -123,11 +123,11 @@ int main(int argc, char **argv)
         if (getpeername(connfd, (struct sockaddr *)&clientAddr, &clientAddr_len) == 0) 
         {
             char client_name[NI_MAXHOST];
-            char client_ip[NI_MAXHOST];
-            if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_ip,NI_MAXHOST, NI_NAMEREQD) == 0)
+            char client_port[NI_MAXHOST];
+            if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_port,NI_MAXHOST, NI_NAMEREQD) == 0)
             {
-                printf("Client Name: %s\n", client_name);
-                printf("Client IP Address: %s\n", client_ip);
+                printf("Client Name/IP: %s\n", client_name);
+                printf("Client port/service: %s\n", client_port);
             }
             else
             {
@@ -172,3 +172,6 @@ int main(int argc, char **argv)
     pclose(who_process);
 }
 
+
+//questions:
+//do i get server name from information i put in from client side, or after connect to the server, i pull that information from server

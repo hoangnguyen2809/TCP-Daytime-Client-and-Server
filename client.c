@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #define MAXLINE     4096    /* max text line length */
 #define DAYTIME_PORT 3333
@@ -69,7 +70,7 @@ int tcp_connect(const char *host, const char *port)
     if (getnameinfo(res->ai_addr, res->ai_addrlen, host_buffer, sizeof(host_buffer),
                 service_buffer, sizeof(service_buffer), 0) == 0)
     {
-        printf("Server name: %s\n", host_buffer);
+        printf("Server name: %s:%s\n", host_buffer, service_buffer);
     }
     else
     {
