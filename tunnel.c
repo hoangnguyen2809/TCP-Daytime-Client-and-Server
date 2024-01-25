@@ -2,6 +2,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <sys/time.h>
 #include <strings.h>
 #include <stdio.h>
 #include <string.h>
@@ -113,12 +114,34 @@ void fill_message(struct message *msg, const char *ip_address, const char *curre
     msg->payload[msg->msglen] = '\0';
 }
 
+void getLocalInfo(int sockfd)
+{
+    struct sockaddr_storage local_addr;
+    socklen_t addr_len = sizeof(local_addr);
+    printf("Local information:\n");
+    if (getsockname(sockfd, (struct sockaddr *)&local_addr, &addr_len) == 0)
+    {
+        char local_host[NI_MAXHOST], local_service[NI_MAXSERV];
+        if (getnameinfo((struct sockaddr *)&local_addr, addr_len, local_host, sizeof(local_host), local_service, sizeof(local_service), NI_NUMERICHOST | NI_NUMERICSERV) == 0)
+        {
+            printf("\tLocal IP Address: %s\n", local_host);
+            printf("\tLocal port number: %s\n\n", local_service);
+        }
+        else
+        {
+            perror("getnameinfo error for client");
+        }
+    }
+    else
+        perror("getsockname error");
+}
 
 int main(int argc, char **argv)
 {
-    int     listenfd, connfd, n;
+    int     listenfd, connfd, sockfd, n;
     struct sockaddr_in tunneladdr;
     struct message received_msg;
+    struct message relay_message;
 
     if (argc != 2)
     {
@@ -176,13 +199,30 @@ int main(int argc, char **argv)
 
             printf("\t\tForward address: %s\n", server_addr);
             printf("\t\tForward port: %s\n", server_port);
+            break;
         }
         if (n < 0) {
             printf("read error\n");
             exit(1);
         }
 
+        printf("Connecting to server\n");
+        sockfd = Tcp_connect(server_addr, server_port);
+        printf("Connected to server\n");
         
+
+        while ((n = read(sockfd, &relay_message, sizeof(struct message))) > 0) {
+            printf("Relay message:\n");
+            printf("\t\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
+            printf("\t\tTime: %.*s", relay_message.timelen, relay_message.currtime);
+            printf("\t\tWho: %.*s\n", relay_message.msglen, relay_message.payload);
+        }
+        if (n < 0) {
+            printf("read error\n");
+            exit(1);
+        }
+
+        write(connfd, &relay_message, sizeof(struct message));
 
     }
 }

@@ -39,44 +39,42 @@ int tcp_connect(const char *host, const char *port)
 {
     int sockfd, n;
     struct addrinfo hints, *res, *ressave;
-    char host_buffer[NI_MAXHOST], service_buffer[NI_MAXSERV];
 
     bzero(&hints, sizeof (struct addrinfo));
     hints.ai_family = AF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
 
+
+    //getaddrinfo handles both name-to-address and service-to-port 
+    //return addrinfo hints which is the only address with af_family = AF_UNSPEC
+    //if service includes multiple socket type, return res base on the ai_socktype = SOCK_STREAM
     if ((n = getaddrinfo (host, port, &hints, &res)) != 0)
     {
         fprintf(stderr,"tcp_connect error for %s, %s: %s\n",host, port, gai_strerror (n));
         exit(1);
     }
+
+    //assign ressave = res, ressave now is a linked list of addrinfo structures, 
+    //linked through the ai_next pointer
     ressave = res;
 
     do {
+        //create socket wich ai_family, ai_socktype, ai_protocol
         sockfd = socket (res->ai_family, res->ai_socktype, res->ai_protocol);
         if (sockfd < 0)
             continue;
+        //if succeed create socket, try to establish connect, if connect succeed break loop
         if (connect (sockfd, res->ai_addr, res->ai_addrlen) == 0)
             break;
         close(sockfd);
     } while ( (res = res->ai_next) != NULL);
+
 
     if (res == NULL)
     {
         fprintf (stderr,"tcp_connect error for %s, %s", host, port);
         exit(1);
     }
-
-    if (getnameinfo(res->ai_addr, res->ai_addrlen, host_buffer, sizeof(host_buffer),
-                service_buffer, sizeof(service_buffer), 0) == 0)
-    {
-        
-    }
-    else
-    {
-        perror("getnameinfo error");
-    }
-
 
     freeaddrinfo (ressave);
 
@@ -88,54 +86,35 @@ int Tcp_connect (const char *host, const char *port)
     return (tcp_connect (host, port));
 }
 
-int main(int argc, char **argv)
+//Populate fields of message before sending
+void fill_message(struct message *msg, const char *ip_address, const char *current_time, const char *payload) {
+    msg->addrlen = strlen(ip_address);
+    msg->timelen = strlen(current_time);
+    msg->msglen = strlen(payload);
+
+    strncpy(msg->addr, ip_address, sizeof(msg->addr));
+    strncpy(msg->currtime, current_time, sizeof(msg->currtime));
+    strncpy(msg->payload, payload, sizeof(msg->payload));
+
+    msg->addr[msg->addrlen] = '\0';
+    msg->currtime[msg->timelen] = '\0';
+    msg->payload[msg->msglen] = '\0';
+}
+
+
+//retrieve local information like ipaddress, portnumber
+void getLocalInfo(int sockfd)
 {
-    int     sockfd, n;
-    struct message received_msg;
-
-    if (argc != 3) {
-        fprintf(stderr, "Usage: client <ServerHostname/IPaddress> <PortNumber>\n");
-        exit(1);
-    }
-
-    sockfd = Tcp_connect (argv[1], argv[2]);
-
-    //     //The socket() function creates an Internet (AF_INET) stream (SOCK_STREAM) socket => TCP
-    // if ( (sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-    //     //If the call to socket fails, we abort the program
-    //     printf("socket error\n");
-    //     exit(1);
-    // }
-
-    // //set the entire structure to 0 using bzero to avoid uninitialized data
-    // bzero(&servaddr, sizeof(servaddr));
-    // servaddr.sin_family = AF_INET;
-    // servaddr.sin_port = htons((uint16_t)port_num); //hton() to convert the binary portnumber
-    // //set the IP address to the value of (argv[1])
-    // //inet_pton to convert the ASCII command-line argument into the proper format.
-    // if (inet_pton(AF_INET, ip_address, &servaddr.sin_addr) <= 0) {
-    //     printf("inet_pton error for %s\n", argv[1]);
-    //     exit(1);
-    // }
-
-    // //establishes a TCP connection with the server specified by the socket address structure 
-    // //pointed to by the second argument
-    // if (connect(sockfd, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0) {
-    //     printf("connect error\n");
-    //     exit(1);
-    // }
-
-
     struct sockaddr_storage local_addr;
     socklen_t addr_len = sizeof(local_addr);
-    printf("Client side information:\n");
+    printf("Local information:\n");
     if (getsockname(sockfd, (struct sockaddr *)&local_addr, &addr_len) == 0)
     {
         char local_host[NI_MAXHOST], local_service[NI_MAXSERV];
         if (getnameinfo((struct sockaddr *)&local_addr, addr_len, local_host, sizeof(local_host), local_service, sizeof(local_service), NI_NUMERICHOST | NI_NUMERICSERV) == 0)
         {
-            printf("\tClient IP Address: %s\n", local_host);
-            printf("\tClient port number: %s\n\n", local_service);
+            printf("\tLocal IP Address: %s\n", local_host);
+            printf("\tLocal port number: %s\n\n", local_service);
         }
         else
         {
@@ -144,44 +123,154 @@ int main(int argc, char **argv)
     }
     else
         perror("getsockname error");
+}
 
+//Get name of the connection that client is communicating to
+char* getConnectionName(int sockfd)
+{
     struct sockaddr_in serverAddr;
     socklen_t serverAddr_len = sizeof(serverAddr);
+    char* server_name = (char*)malloc(NI_MAXHOST);
     if (getpeername(sockfd, (struct sockaddr *)&serverAddr, &serverAddr_len) == 0) 
     {
-        char server_name[NI_MAXHOST];
-        char server_port[NI_MAXHOST];
-        printf("Connected to server!\n");
-        if (getnameinfo((struct sockaddr*)&serverAddr, serverAddr_len, server_name, NI_MAXHOST, server_port,NI_MAXHOST, NI_NAMEREQD) == 0)
+        if (getnameinfo((struct sockaddr*)&serverAddr, serverAddr_len, server_name, NI_MAXHOST, NULL, NI_MAXSERV, NI_NAMEREQD) == 0)
         {
-            printf("Server Name: %s\n", server_name);
+            return server_name;
         }
         else
         {
             perror("getnameinfo error");
         }
     }
-    else {
-        perror("getpeername error");
-    }
+    free(server_name);
+    return NULL;
+}
 
-    
-    
-
-    //read the server’s reply and display the result 
-    while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
-        printf("IP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
-        printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
-        printf("Who: %.*s\n", received_msg.msglen, received_msg.payload);
+//Get port of the connection that client is communicating to
+char* getConnectionPort(int sockfd)
+{
+    struct sockaddr_in serverAddr;
+    socklen_t serverAddr_len = sizeof(serverAddr);
+    char* server_port = (char*)malloc(INET_ADDRSTRLEN);
+    if (getpeername(sockfd, (struct sockaddr *)&serverAddr, &serverAddr_len) == 0) 
+    {
+        if (getnameinfo((struct sockaddr*)&serverAddr, serverAddr_len, NULL, NI_MAXHOST, server_port,NI_MAXSERV, NI_NAMEREQD) == 0)
+        {
+            return server_port;
+        }
+        else
+        {
+            perror("getnameinfo error");
+        }
     }
-    if (n < 0) {
-        printf("read error\n");
+    free(server_port);
+    return NULL;
+}
+
+//Get address of the connection that client is communicating to
+char* getConnectionAddress(int sockfd)
+{
+    struct sockaddr_in serverAddr;
+    socklen_t serverAddr_len = sizeof(serverAddr);
+    char* server_ip = (char*)malloc(NI_MAXHOST);
+    if (getpeername(sockfd, (struct sockaddr *)&serverAddr, &serverAddr_len) == 0) 
+    {
+        inet_ntop(AF_INET, &(serverAddr.sin_addr), server_ip, INET_ADDRSTRLEN);
+        return server_ip;
+    }
+    free(server_ip);
+    return NULL;
+}
+
+int main(int argc, char **argv)
+{
+    int     sockfd, n;
+    struct message received_msg;
+    struct message my_message;
+
+    if (argc != 3 && argc != 5) 
+    {
+        fprintf(stderr, "Usage: client (<TunnelName/TunnelIPAddress> <TunnelPortNumber>) <ServerHostname/IPaddress> <PortNumber>\n");
         exit(1);
     }
 
+    if (argc == 3)
+    {
+        const char *serverName = argv[1];
+        const char *serverPort = argv[2];
+        sockfd = Tcp_connect (serverName, serverPort);
+
+        getLocalInfo(sockfd);
+
+        printf("Server Name: %s\n", getConnectionName(sockfd));
+        free(getConnectionName(sockfd));
+        // printf("%s\n", getConnectionPort(sockfd));
+        // free(getConnectionPort(sockfd));
+        // printf("%s\n", getConnectionAddress(sockfd));
+        // free(getConnectionAddress(sockfd));
+
+        //read the server’s reply and display the result 
+        while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
+            printf("IP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+            printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
+            printf("Who: %.*s\n", received_msg.msglen, received_msg.payload);
+        }
+        if (n < 0) {
+            printf("read error\n");
+            exit(1);
+        }
+    }
+
+    if (argc == 5)
+    {
+        const char *tunnelName = argv[1];
+        const char *tunnelPort = argv[2];
+        const char *serverName = argv[3];
+        const char *serverPort = argv[4];
+
+        sockfd = Tcp_connect (tunnelName, tunnelPort);
+
+        //initialize message to send to tunnel
+        printf("Preping message...\n");
+        fill_message(&my_message, serverName, "", serverPort); //use payload to store port number
+        printf("\tmy_message.addr: %s\n", my_message.addr);
+        printf("\tmy_message.payload: %s\n", my_message.payload);
+        printf("...Finished\n");    
+        write(sockfd, &my_message, sizeof(struct message));
+        printf("Message sent to tunnel.\n");
+        printf("Waiting response...\n");
+
+        struct sockaddr_in server_addr;
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(atoi(serverPort));
+        inet_pton(AF_INET, serverName, &(server_addr.sin_addr));
+
+        char server_name[NI_MAXHOST];
+
+        if (getnameinfo((struct sockaddr *)&server_addr, sizeof(server_addr), server_name, NI_MAXHOST, NULL, 0, 0) == 0) {
+            printf("\tServer Name: %s\n", server_name);
+        } else {
+            perror("getnameinfo error");
+        }
+
+        //display message received from tunnel
+        while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
+            printf("\tIP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+            printf("\tTime: %.*s", received_msg.timelen, received_msg.currtime);
+            printf("\tWho: %.*s\n", received_msg.msglen, received_msg.payload);
+            break;
+        }
+        if (n < 0) {
+            printf("read error\n");
+            exit(1);
+        }
+
+        printf("\tVia Tunnel: %s\n", getConnectionName(sockfd));
+        printf("\tIP Address: %s\n", getConnectionAddress(sockfd));
+        printf("\tPort Number: %s\n", getConnectionPort(sockfd));
+
+    }
     
-
-
     exit(0);
 }
 
