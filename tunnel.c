@@ -85,9 +85,9 @@ void getConnectionInfo(int sockfd)
         if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_port,NI_MAXHOST, NI_NAMEREQD) == 0)
         {
             inet_ntop(AF_INET, &(clientAddr.sin_addr), client_ip, INET_ADDRSTRLEN);
-            printf("\tClient Name: %s\n", client_name);
-            printf("\tClient IPAddress: %s\n", client_ip);
-            printf("\tClient port: %s\n", client_port);
+            printf("Received request from client %s", client_name);
+            //printf("\tClient IPAddress: %s\n", client_ip);
+            printf(" port %s", client_port);
         }
         else
         {
@@ -136,9 +136,30 @@ void getLocalInfo(int sockfd)
         perror("getsockname error");
 }
 
+//Get name of the connection that client is communicating to
+char* getConnectionName(int sockfd)
+{
+    struct sockaddr_in serverAddr;
+    socklen_t serverAddr_len = sizeof(serverAddr);
+    char* server_name = (char*)malloc(NI_MAXHOST);
+    if (getpeername(sockfd, (struct sockaddr *)&serverAddr, &serverAddr_len) == 0) 
+    {
+        if (getnameinfo((struct sockaddr*)&serverAddr, serverAddr_len, server_name, NI_MAXHOST, NULL, NI_MAXSERV, NI_NAMEREQD) == 0)
+        {
+            return server_name;
+        }
+        else
+        {
+            perror("getnameinfo error");
+        }
+    }
+    free(server_name);
+    return NULL;
+}
+
 int main(int argc, char **argv)
 {
-    int     listenfd, connfd, sockfd, n;
+    int     listenfd, connfd, sockfd, n, m;
     struct sockaddr_in tunneladdr;
     struct message received_msg;
     struct message relay_message;
@@ -197,8 +218,8 @@ int main(int argc, char **argv)
             // Null-terminate the string
             server_port[received_msg.msglen] = '\0';
 
-            printf("\tForward address: %s\n", server_addr);
-            printf("\tForward port: %s\n", server_port);
+            //printf("\tForward address: %s\n", server_addr);
+            //printf("\tForward port: %s\n", server_port);
             break;
         }
         if (n < 0) {
@@ -206,25 +227,68 @@ int main(int argc, char **argv)
             exit(1);
         }
 
-        printf("Connecting to server\n");
+        //printf("Connecting to server\n");
         sockfd = Tcp_connect(server_addr, server_port);
-        printf("Connected to server\n");
+        //printf("Connected to server\n");
         
 
-        while ((n = read(sockfd, &relay_message, sizeof(struct message))) > 0) {
-            printf("Relay message:\n");
-            printf("\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
-            printf("\tTime: %.*s", relay_message.timelen, relay_message.currtime);
-            printf("\tWho: %.*s\n", relay_message.msglen, relay_message.payload);
+        char buffer[sizeof(struct message)];
+        ssize_t totalBytesRead = 0;
+
+        while ((m = read(sockfd, buffer + totalBytesRead, sizeof(struct message)-totalBytesRead)) > 0) {
+            totalBytesRead += n;
+             // Ensure null-termination of strings
+            if (totalBytesRead == sizeof(struct message))
+            {
+                memcpy(&relay_message, buffer, sizeof(struct message));
+
+                relay_message.addr[relay_message.addrlen] = '\0';
+                relay_message.currtime[relay_message.timelen] = '\0';
+                relay_message.payload[relay_message.msglen] = '\0';
+
+                // printf("Received %d bytes\n", n);
+                // printf("addrlen: %d\n", relay_message.addrlen);
+                // printf("timelen: %d\n", relay_message.timelen);
+                // printf("msglen: %d\n", relay_message.msglen);
+                // printf("\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
+                // printf("\tTime: %.*s", relay_message.timelen, relay_message.currtime);
+                // printf("\tWho: %.*s\n", relay_message.msglen, relay_message.payload);
+
+                totalBytesRead = 0;
+                break;
+            }
+
         }
-        if (n < 0) {
+        if (m < 0) {
             printf("read error\n");
             exit(1);
         }
 
-        printf("Sending relay msg to client\n");
+        char* server_name = getConnectionName(sockfd);
+        char ip_addr[MAXLINE + 1];  
+        char time[MAXLINE + 1];
+
+        memcpy(ip_addr, relay_message.addr, relay_message.addrlen);
+        ip_addr[relay_message.addrlen] = '\0';
+        memcpy(time, relay_message.payload, relay_message.msglen);
+        ip_addr[relay_message.msglen] = '\0';
+        
+        relay_message.msglen = strlen(server_name);
+        memcpy(relay_message.payload, server_name, relay_message.msglen);
+        relay_message.payload[relay_message.msglen] = '\0';
+
+        free(server_name); 
+        
+        struct message relay;
+
+        close(sockfd);
+        printf(" destined to server %.*s", relay_message.msglen, relay_message.payload);
+        printf("port %s\n\n", server_port);
+        //printf("\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
+        //printf("\tTime: %.*s", relay_message.timelen, relay_message.currtime);
+        fill_message(&relay, ip_addr, time, server_name); 
         write(connfd, &relay_message, sizeof(struct message));
-        printf("Relay msg sent!\n");
+        // printf("Relay msg sent!\n");
         close(connfd);
     }
 }
