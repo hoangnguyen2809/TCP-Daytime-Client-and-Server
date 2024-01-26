@@ -85,9 +85,9 @@ void getConnectionInfo(int sockfd)
         if (getnameinfo((struct sockaddr*)&clientAddr, clientAddr_len, client_name, NI_MAXHOST, client_port,NI_MAXHOST, NI_NAMEREQD) == 0)
         {
             inet_ntop(AF_INET, &(clientAddr.sin_addr), client_ip, INET_ADDRSTRLEN);
-            printf("\t\tClient Name: %s\n", client_name);
-            printf("\t\tClient IPAddress: %s\n", client_ip);
-            printf("\t\tClient port: %s\n", client_port);
+            printf("\tClient Name: %s\n", client_name);
+            printf("\tClient IPAddress: %s\n", client_ip);
+            printf("\tClient port: %s\n", client_port);
         }
         else
         {
@@ -180,7 +180,7 @@ int main(int argc, char **argv)
             continue;
         }
         else
-            printf("\tAccept connection.\n");
+            printf("Accept connection.\n");
 
         getConnectionInfo(connfd);
 
@@ -197,8 +197,8 @@ int main(int argc, char **argv)
             // Null-terminate the string
             server_port[received_msg.msglen] = '\0';
 
-            printf("\t\tForward address: %s\n", server_addr);
-            printf("\t\tForward port: %s\n", server_port);
+            printf("\tForward address: %s\n", server_addr);
+            printf("\tForward port: %s\n", server_port);
             break;
         }
         if (n < 0) {
@@ -213,16 +213,18 @@ int main(int argc, char **argv)
 
         while ((n = read(sockfd, &relay_message, sizeof(struct message))) > 0) {
             printf("Relay message:\n");
-            printf("\t\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
-            printf("\t\tTime: %.*s", relay_message.timelen, relay_message.currtime);
-            printf("\t\tWho: %.*s\n", relay_message.msglen, relay_message.payload);
+            printf("\tIP Address: %.*s\n", relay_message.addrlen, relay_message.addr);
+            printf("\tTime: %.*s", relay_message.timelen, relay_message.currtime);
+            printf("\tWho: %.*s\n", relay_message.msglen, relay_message.payload);
         }
         if (n < 0) {
             printf("read error\n");
             exit(1);
         }
 
+        printf("Sending relay msg to client\n");
         write(connfd, &relay_message, sizeof(struct message));
-
+        printf("Relay msg sent!\n");
+        close(connfd);
     }
 }
