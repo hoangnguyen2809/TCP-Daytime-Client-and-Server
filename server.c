@@ -158,26 +158,23 @@ int main(int argc, char **argv)
         }
         pclose(who_process);
 
-        printf("Preping message...\n");
+        // printf("Preping message...\n");
         fill_message(&my_message, server_ip, buff, my_message.payload);
-        printf("\tIP Address: %s\n", my_message.addr);
-        printf("\tTime: %s", my_message.currtime);
-        printf("\tWho: %s", my_message.payload);
-        printf("...Finished\n");        
+        // printf("\tIP Address: %s\n", my_message.addr);
+        // printf("\tTime: %s", my_message.currtime);
+        // printf("\tWho: %s", my_message.payload);
+        // printf("...Finished\n");        
 
         //the message is copied to connfd and send back to client by write()
-        printf("Sending message to client...\n");
+        //printf("Sending message to client...\n");
         write(connfd, &my_message, sizeof(struct message));
-        printf("Message sent!\n");
+        //printf("Message sent!\n");
         
 
         //Terminate connection
         close(connfd);
-        printf("Connection closed.\n\n");
+        //printf("Connection closed.\n\n");
     }
     
 }
 
-
-//questions:
-//do i get server name from information i put in from client side, or after connect to the server, i pull that information from server
