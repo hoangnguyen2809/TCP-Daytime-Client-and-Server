@@ -20,20 +20,6 @@ struct message{
     char payload[MAXLINE];
 };
 
-//Function extracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff 
-int readable_timeo(int fd, int sec)
-{
-    fd_set rset;
-    struct timeval tv;
-
-    FD_ZERO(&rset);
-    FD_SET(fd, &rset);
-    tv.tv_sec = sec;
-    tv.tv_usec = 0;
-
-    return (select(fd+1, &rset, NULL, NULL, &tv));    
-}
-
 //Functions abstracted from "Unix Network Programming: The Sockets Networking API" by Stevens, Fenner, Rudoff (2003)
 int tcp_connect(const char *host, const char *port)
 {
@@ -200,20 +186,37 @@ int main(int argc, char **argv)
         const char *serverPort = argv[2];
         sockfd = Tcp_connect (serverName, serverPort);
 
-        getLocalInfo(sockfd);
+        //getLocalInfo(sockfd);
 
-        printf("Server Name: %s\n", getConnectionName(sockfd));
+        printf("\nServer Name: %s\n", getConnectionName(sockfd));
         free(getConnectionName(sockfd));
         // printf("%s\n", getConnectionPort(sockfd));
         // free(getConnectionPort(sockfd));
         // printf("%s\n", getConnectionAddress(sockfd));
         // free(getConnectionAddress(sockfd));
 
+        char buffer[sizeof(struct message)];
+        ssize_t totalBytesRead = 0;
         //read the server’s reply and display the result 
-        while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
-            printf("IP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
-            printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
-            printf("Who: %.*s\n", received_msg.msglen, received_msg.payload);
+        while ((n = read(sockfd, buffer + totalBytesRead, sizeof(struct message)-totalBytesRead)) > 0) {
+            totalBytesRead += n;
+
+            if (totalBytesRead == sizeof(struct message))
+            {
+                memcpy(&received_msg, buffer, sizeof(struct message));
+
+                received_msg.addr[received_msg.addrlen] = '\0';
+                received_msg.currtime[received_msg.timelen] = '\0';
+                received_msg.payload[received_msg.msglen] = '\0';
+
+                //printf("Received %d bytes\n", n);
+                printf("IP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+                printf("Time: %.*s", received_msg.timelen, received_msg.currtime);
+                printf("Who: %.*s\n", received_msg.msglen, received_msg.payload);
+
+                totalBytesRead = 0;
+            }
+            
         }
         if (n < 0) {
             printf("read error\n");
@@ -231,43 +234,56 @@ int main(int argc, char **argv)
         sockfd = Tcp_connect (tunnelName, tunnelPort);
 
         //initialize message to send to tunnel
-        printf("Preping message...\n");
+        //printf("Preping message...\n");
         fill_message(&my_message, serverName, "", serverPort); //use payload to store port number
-        printf("\tmy_message.addr: %s\n", my_message.addr);
-        printf("\tmy_message.payload: %s\n", my_message.payload);
-        printf("...Finished\n");    
+        //printf("\tmy_message.addr: %s\n", my_message.addr);
+        //printf("\tmy_message.payload: %s\n", my_message.payload);
+        //printf("...Finished\n");    
         write(sockfd, &my_message, sizeof(struct message));
-        printf("Message sent to tunnel.\n");
-        printf("Waiting response...\n");
+        //printf("Message sent to tunnel.\n");
+        //printf("Waiting response...\n");
 
         struct sockaddr_in server_addr;
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(atoi(serverPort));
         inet_pton(AF_INET, serverName, &(server_addr.sin_addr));
 
-        char server_name[NI_MAXHOST];
-
-        if (getnameinfo((struct sockaddr *)&server_addr, sizeof(server_addr), server_name, NI_MAXHOST, NULL, 0, 0) == 0) {
-            printf("\tServer Name: %s\n", server_name);
-        } else {
-            perror("getnameinfo error");
-        }
-
         //display message received from tunnel
-        while ((n = read(sockfd, &received_msg, sizeof(struct message))) > 0) {
-            printf("\tIP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
-            printf("\tTime: %.*s", received_msg.timelen, received_msg.currtime);
-            printf("\tWho: %.*s\n", received_msg.msglen, received_msg.payload);
-            break;
+        char buffer[sizeof(struct message)];
+        ssize_t totalBytesRead = 0;
+
+        while ((n = read(sockfd, buffer + totalBytesRead, sizeof(struct message) - totalBytesRead)) > 0) {
+            totalBytesRead += n;
+
+            // Check if the entire message has been received
+             if (totalBytesRead == sizeof(struct message)) {
+                // Copy the buffer into the received_msg structure
+                memcpy(&received_msg, buffer, sizeof(struct message));
+
+                // Ensure null-termination of strings
+                received_msg.addr[received_msg.addrlen] = '\0';
+                received_msg.currtime[received_msg.timelen] = '\0';
+                received_msg.payload[received_msg.msglen] = '\0';
+
+                // Print the entire message
+                printf("Received %zd bytes\n", totalBytesRead);
+                printf("\tServer Name: %.*s\n", received_msg.msglen, received_msg.payload);
+                printf("\tIP Address: %.*s\n", received_msg.addrlen, received_msg.addr);
+                printf("\tTime: %.*s", received_msg.timelen, received_msg.currtime);
+
+                // Reset totalBytesRead for the next message
+                totalBytesRead = 0;
+            }
         }
         if (n < 0) {
             printf("read error\n");
             exit(1);
         }
-
+        
+        printf("\n");
         printf("\tVia Tunnel: %s\n", getConnectionName(sockfd));
         printf("\tIP Address: %s\n", getConnectionAddress(sockfd));
-        printf("\tPort Number: %s\n", getConnectionPort(sockfd));
+        printf("\tPort Number: %s\n\n", getConnectionPort(sockfd));
 
     }
     
